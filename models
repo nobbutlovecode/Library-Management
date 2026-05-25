@@ -1,0 +1,18 @@
+# models.py
+class Book:
+    def __init__(self, book_id, title, author, image_file, description, quantity):
+        self.id = book_id
+        self.title = title
+        self.author = author
+        self.image_file = image_file
+        self.description = description
+        self.quantity = int(quantity)
+
+
+class BorrowedBook:
+    def __init__(self, borrow_id, book, borrower_name, student_id, borrowed_time):
+        self.id = int(borrow_id)
+        self.book = book
+        self.borrower_name = borrower_name
+        self.student_id = student_id
+        self.borrowed_time = borrowed_time
