@@ -1,23 +1,26 @@
 # database.py
-import pyodbc
+import psycopg2
 from datetime import datetime
 from models import Book, BorrowedBook
 
 class LibraryDAO:
     def __init__(self):
-        # Cấu hình chuỗi kết nối SQL Server
-        self.conn_str = (
-            "DRIVER={ODBC Driver 17 for SQL Server};"
-            "SERVER=localhost,1433;"
-            "DATABASE=library_db;"
-            "UID=sa;"
-            "PWD=123456;"
-            "Encrypt=yes;"
-            "TrustServerCertificate=yes;"
-        )
+        # Bạn thay đổi các thông số dưới đây khớp với tài khoản Supabase của bạn
+        self.host = "db.xxxxxx.supabase.co"       # Host từ Supabase
+        self.user = "postgres"                     # Mặc định là postgres
+        self.password = "Mật_Khẩu_Của_Bạn"         # Mật khẩu bạn đặt khi tạo dự án Supabase
+        self.database = "postgres"                 # Database mặc định của Supabase là postgres
+        self.port = "5432"                         # Cổng mặc định của PostgreSQL
 
     def connect(self):
-        return pyodbc.connect(self.conn_str)
+        # Sử dụng thư viện psycopg2 để kết nối đến PostgreSQL/Supabase
+        return psycopg2.connect(
+            host=self.host,
+            user=self.user,
+            password=self.password,
+            dbname=self.database,
+            port=self.port
+        )
 
     def get_all_books(self):
         books = []
@@ -34,12 +37,11 @@ class LibraryDAO:
 
     def get_borrowed_books(self):
         list_borrowed = []
-        # Sử dụng RTRIM và LTRIM để loại bỏ khoảng trắng thừa ở ID sách khi JOIN
         sql = """
             SELECT bb.id, bb.book_id, bb.borrower_name, bb.student_id, bb.borrowed_time,
                    b.title, b.author, b.image_file, b.description, b.quantity
             FROM borrowed_books bb
-            JOIN books b ON RTRIM(LTRIM(bb.book_id)) = RTRIM(LTRIM(b.id))
+            JOIN books b ON TRIM(bb.book_id) = TRIM(b.id)
         """
         try:
             with self.connect() as conn:
@@ -54,13 +56,13 @@ class LibraryDAO:
         return list_borrowed
 
     def borrow_book(self, book_id, name, student_id):
-        sql_update = "UPDATE books SET quantity = quantity - 1 WHERE id = ? AND quantity > 0"
-        sql_insert = "INSERT INTO borrowed_books (book_id, borrower_name, student_id, borrowed_time) VALUES (?, ?, ?, GETDATE())"
+        sql_update = "UPDATE books SET quantity = quantity - 1 WHERE id = %s AND quantity > 0"
+        sql_insert = "INSERT INTO borrowed_books (book_id, borrower_name, student_id, borrowed_time) VALUES (%s, %s, %s, CURRENT_TIMESTAMP)"
         try:
             conn = self.connect()
-            conn.autocommit = False
             cursor = conn.cursor()
             try:
+                # Giao dịch thủ công với psycopg2
                 cursor.execute(sql_update, (book_id,))
                 if cursor.rowcount == 0:
                     conn.rollback()
@@ -78,11 +80,10 @@ class LibraryDAO:
             return False
 
     def return_book(self, borrow_id, book_id):
-        sql_delete = "DELETE FROM borrowed_books WHERE id = ?"
-        sql_update = "UPDATE books SET quantity = quantity + 1 WHERE id = ?"
+        sql_delete = "DELETE FROM borrowed_books WHERE id = %s"
+        sql_update = "UPDATE books SET quantity = quantity + 1 WHERE id = %s"
         try:
             conn = self.connect()
-            conn.autocommit = False
             cursor = conn.cursor()
             try:
                 cursor.execute(sql_delete, (borrow_id,))
@@ -99,7 +100,7 @@ class LibraryDAO:
             return False
 
     def update_quantity(self, book_id, new_qty):
-        sql = "UPDATE books SET quantity = ? WHERE id = ?"
+        sql = "UPDATE books SET quantity = %s WHERE id = %s"
         try:
             with self.connect() as conn:
                 with conn.cursor() as cursor:
